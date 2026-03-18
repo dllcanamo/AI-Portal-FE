@@ -65,8 +65,9 @@ src/
     tasks/                      # StepTracker, StepDetail, TaskTrigger, TaskOutput
     ui/                         # Button, Input, Card, Badge, Avatar
   lib/
-    types.ts                    # TypeScript interfaces (Agent, Message, WorkflowStep, etc.)
+    types.ts                    # TypeScript interfaces (Agent, Message, Attachment, etc.)
     mock-data.ts                # Mock agents, chat responses, and workflow definitions
+    file-validation.ts          # File upload security (type/size validation, filename sanitization)
     utils.ts                    # Utility helpers (cn class merger)
   providers/
     ThemeProvider.tsx            # Theme provider (dark mode support, currently disabled)
@@ -79,7 +80,7 @@ src/
 | `/` | Dashboard with stats overview and featured agents |
 | `/agents` | Filterable catalog of all agents (type, category, search) |
 | `/chat` | Chat agents listing |
-| `/chat/[agentId]` | Chat interface with simulated streaming responses |
+| `/chat/[agentId]` | Chat interface with simulated responses, image/file uploads |
 | `/tasks` | Task agents listing |
 | `/tasks/[agentId]` | Workflow runner with step-by-step progress tracking |
 
@@ -92,3 +93,13 @@ The app ships with 8 sample agents:
 **Task:** Data Pipeline Agent, Report Generator, Test Runner Agent, Deployment Bot
 
 All responses and workflow steps are simulated with mock data and timers.
+
+## Chat File Uploads
+
+Chat agents support rich media attachments with built-in security:
+
+- **Images:** JPG, PNG, GIF, WebP (max 5 MB each)
+- **Files:** PDF, TXT, CSV, JSON, MD, DOCX, XLSX (max 10 MB each)
+- **Limit:** Up to 5 attachments per message
+- **Drag and drop** supported on the input area
+- **Security:** MIME type validation, file size limits, filename sanitization (path traversal prevention, control character stripping, length capping)
