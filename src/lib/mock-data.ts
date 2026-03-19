@@ -316,13 +316,43 @@ export const mockWorkflows: Record<string, WorkflowStep[]> = {
   ],
 };
 
+export const mockTaskResponses: Record<string, string[]> = {
+  "data-pipeline": [
+    "Pipeline completed successfully.\n\nExtracted 15,420 records from 3 tables (users, orders, products). Cleaned and removed 23 duplicates, normalized 8 date columns. All validation checks passed with 100% schema compliance. Loaded 15,397 records to the data warehouse.",
+    "Pipeline finished.\n\nProcessed 8,230 records from the configured CSV source. Applied 12 transformation rules, converted date formats, and standardized currency fields. 8,212 records written to the destination after deduplication.",
+  ],
+  "report-generator": [
+    "Report generated successfully.\n\nGathered data from 4 sources: Sales API, CRM database, Google Analytics, and uploaded CSV. Identified 3 major trends: 15% revenue growth, 8% churn reduction, 22% increase in new signups. Generated 6 charts and compiled a 12-page report with executive summary. PDF ready for download.",
+    "Report ready.\n\nAnalyzed Q1 performance across all departments. Key highlights: marketing spend efficiency up 18%, customer acquisition cost down 12%, net promoter score improved by 9 points. Full breakdown with visualizations included in the attached report.",
+  ],
+  "test-runner": [
+    "Test run complete.\n\n142 unit tests: 139 passed, 3 failed.\n\nFailed:\n- UserService.test.ts: expected 200, got 401\n- CartModule.test.ts: timeout after 5000ms\n- PaymentHelper.test.ts: assertion error on line 88\n\n28 integration tests: all passed.\nOverall coverage: 84.2% (Statements: 86.1%, Branches: 79.3%, Functions: 88.7%)\n\nSuggested fixes: expired auth token mock, async timeout too low, outdated snapshot.",
+    "Test run complete.\n\nAll 95 unit tests passed. 14 integration tests passed. Overall coverage: 91.3%. No issues detected.",
+  ],
+  "deployment-bot": [
+    "Deployment successful.\n\nBuild completed in 45s (bundle: 2.3MB, gzipped: 680KB). All 18 smoke tests passed. Deployed to staging at staging-app.example.com with 3 instances. Health check passed (avg response: 120ms, memory: 256MB/512MB, CPU: 12%). Promoted to production via blue-green swap. Old version retained for rollback.",
+    "Deployment complete.\n\nApplication built and verified. Staged deployment healthy with all endpoints responding. Production blue-green swap executed successfully. Rollback point saved at v2.4.1.",
+  ],
+};
+
 /**
- * Returns a random mock response for a given agent.
+ * Returns a random mock response for a given chat agent.
  */
 export function getMockResponse(agentId: string): string {
   const responses = mockChatResponses[agentId];
   if (!responses || responses.length === 0) {
     return "I'm here to help! Could you give me more details about what you'd like to work on?";
+  }
+  return responses[Math.floor(Math.random() * responses.length)];
+}
+
+/**
+ * Returns a random mock response for a given task agent.
+ */
+export function getMockTaskResponse(agentId: string): string {
+  const responses = mockTaskResponses[agentId];
+  if (!responses || responses.length === 0) {
+    return "Task completed successfully. No additional output available.";
   }
   return responses[Math.floor(Math.random() * responses.length)];
 }

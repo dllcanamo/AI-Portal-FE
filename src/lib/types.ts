@@ -13,11 +13,23 @@ export interface Agent {
   capabilities: string[];
 }
 
+export type AttachmentType = "image" | "file";
+
+export interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  attachmentType: AttachmentType;
+  url: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  attachments?: Attachment[];
 }
 
 export type WorkflowStepStatus = "pending" | "running" | "completed" | "failed";

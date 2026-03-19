@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Bot, ArrowLeft, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { getAgentById, getMockResponse } from "@/lib/mock-data";
-import type { Message } from "@/lib/types";
+import type { Message, Attachment } from "@/lib/types";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -64,7 +64,7 @@ export default function ChatPage() {
   }, [messages, isTyping, scrollToBottom]);
 
   const handleSend = useCallback(
-    (text: string) => {
+    (text: string, attachments: Attachment[]) => {
       if (!agent) return;
 
       const userMessage: Message = {
@@ -72,13 +72,18 @@ export default function ChatPage() {
         role: "user",
         content: text,
         timestamp: new Date(),
+        attachments: attachments.length > 0 ? attachments : undefined,
       };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
       const delay = 1000 + Math.random() * 1000;
       setTimeout(() => {
-        const response = getMockResponse(agentId);
+        const hasAttachments = attachments.length > 0;
+        const response = hasAttachments
+          ? `I received your ${attachments.length > 1 ? `${attachments.length} files` : `file "${attachments[0].name}"`}. ${getMockResponse(agentId)}`
+          : getMockResponse(agentId);
+
         const assistantMessage: Message = {
           id: generateMessageId(),
           role: "assistant",

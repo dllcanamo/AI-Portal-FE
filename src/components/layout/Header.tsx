@@ -27,6 +27,7 @@ export function Header({ className }: HeaderProps) {
           type="text"
           placeholder="Search agents..."
           className="w-full rounded-lg border border-surface-200 bg-surface-50 py-2 pl-9 pr-4 text-sm text-surface-900 placeholder:text-surface-400 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100 dark:placeholder:text-surface-500"
+          suppressHydrationWarning
         />
       </div>
 
@@ -34,6 +35,7 @@ export function Header({ className }: HeaderProps) {
         <button
           className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200"
           aria-label="Notifications"
+          suppressHydrationWarning
         >
           <Bell size={18} />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary-500" />
@@ -42,6 +44,7 @@ export function Header({ className }: HeaderProps) {
         <button
           className="ml-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary-100 text-primary-600 transition-colors hover:bg-primary-200 dark:bg-primary-950 dark:text-primary-400 dark:hover:bg-primary-900"
           aria-label="User menu"
+          suppressHydrationWarning
         >
           <User size={16} />
         </button>
