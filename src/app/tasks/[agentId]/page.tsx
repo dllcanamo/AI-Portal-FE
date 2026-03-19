@@ -2,93 +2,50 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { useCallback, useState } from "react";
-import { getAgentById, getWorkflowSteps } from "@/lib/mock-data";
-import type { WorkflowStep } from "@/lib/types";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { getAgentById, getMockTaskResponse } from "@/lib/mock-data";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { StepTracker } from "@/components/tasks/StepTracker";
-import { StepDetail } from "@/components/tasks/StepDetail";
 import { TaskTrigger } from "@/components/tasks/TaskTrigger";
 import { TaskOutput } from "@/components/tasks/TaskOutput";
 
 type RunStatus = "idle" | "running" | "completed" | "failed";
 
 /**
- * Task workflow page for a given agent. Displays agent info, workflow steps,
- * and allows running the workflow with animated step progression.
+ * Simplified task agent page with three phases: input, processing, and output.
  */
 export default function TaskAgentPage() {
   const params = useParams();
   const agentId = params.agentId as string;
-
   const agent = getAgentById(agentId);
-  const initialSteps = getWorkflowSteps(agentId);
 
-  const [steps, setSteps] = useState<WorkflowStep[]>(initialSteps);
-  const [activeStepId, setActiveStepId] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const [status, setStatus] = useState<RunStatus>("idle");
   const [result, setResult] = useState<string | null>(null);
-  const [runStatus, setRunStatus] = useState<RunStatus>("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTrigger = useCallback(
     (input: Record<string, string>) => {
-      const freshSteps = getWorkflowSteps(agentId);
-      setSteps(freshSteps);
-      setActiveStepId(null);
-      setIsRunning(true);
-      setRunStatus("running");
+      setStatus("running");
       setResult(null);
 
-      if (freshSteps.length === 0) {
-        setIsRunning(false);
-        setRunStatus("completed");
-        setResult("No workflow steps configured for this agent.");
-        return;
-      }
+      if (timerRef.current) clearTimeout(timerRef.current);
 
-      let cumulativeDelay = 0;
-
-      freshSteps.forEach((step, index) => {
-        cumulativeDelay += step.duration ?? 1000;
-
-        setTimeout(() => {
-          setSteps((prev) =>
-            prev.map((s) =>
-              s.id === step.id
-                ? { ...s, status: "running" as const }
-                : s
-            )
-          );
-          setActiveStepId(step.id);
-        }, cumulativeDelay - (step.duration ?? 1000));
-
-        setTimeout(() => {
-          setSteps((prev) =>
-            prev.map((s) =>
-              s.id === step.id
-                ? {
-                    ...s,
-                    status: "completed" as const,
-                    output: step.output,
-                  }
-                : s
-            )
-          );
-
-          if (index === freshSteps.length - 1) {
-            setIsRunning(false);
-            setRunStatus("completed");
-            setResult(
-              `Workflow completed successfully. ${freshSteps.length} steps executed.`
-            );
-          }
-        }, cumulativeDelay);
-      });
+      timerRef.current = setTimeout(() => {
+        setResult(getMockTaskResponse(agentId));
+        setStatus("completed");
+      }, 2500);
     },
     [agentId]
   );
+
+  /**
+   * Resets the page back to the idle input state.
+   */
+  function handleReset() {
+    setStatus("idle");
+    setResult(null);
+  }
 
   if (!agent) {
     return (
@@ -107,16 +64,14 @@ export default function TaskAgentPage() {
     );
   }
 
-  const activeStep = steps.find((s) => s.id === activeStepId) ?? null;
-
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-6">
+    <div className="mx-auto max-w-3xl space-y-8 p-6">
       <Link
-        href="/agents"
+        href="/tasks"
         className="inline-flex items-center gap-2 text-sm text-surface-600 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100"
       >
         <ArrowLeft size={16} />
-        Back to agents
+        Back to task agents
       </Link>
 
       <header className="flex flex-wrap items-start gap-4 rounded-xl border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-900">
@@ -138,32 +93,37 @@ export default function TaskAgentPage() {
         </div>
       </header>
 
-      <TaskTrigger
-        agentName={agent.name}
-        isRunning={isRunning}
-        onTrigger={handleTrigger}
-      />
+      {status === "idle" && (
+        <TaskTrigger
+          agentName={agent.name}
+          isRunning={false}
+          onTrigger={handleTrigger}
+        />
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="space-y-4 lg:col-span-3">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
-            Workflow steps
-          </h2>
-          <StepTracker
-            activeStepId={activeStepId}
-            onStepClick={setActiveStepId}
-            steps={steps}
+      {status === "running" && (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-surface-200 bg-white p-12 dark:border-surface-700 dark:bg-surface-900">
+          <Loader2
+            size={40}
+            className="animate-spin text-primary-500"
+            aria-hidden
           />
+          <p className="text-lg font-medium text-surface-700 dark:text-surface-300">
+            Processing your task...
+          </p>
+          <p className="text-sm text-surface-500 dark:text-surface-400">
+            {agent.name} is working on it
+          </p>
         </div>
-        <div className="space-y-4 lg:col-span-2">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
-            Step details
-          </h2>
-          <StepDetail step={activeStep} />
-        </div>
-      </div>
+      )}
 
-      <TaskOutput result={result} status={runStatus} />
+      {(status === "completed" || status === "failed") && (
+        <TaskOutput
+          result={result}
+          status={status}
+          onReset={handleReset}
+        />
+      )}
     </div>
   );
 }
