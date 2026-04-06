@@ -1,76 +1,58 @@
 "use client";
 
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
 interface TaskOutputProps {
   /** The result message to display */
   result: string | null;
-  /** Current status of the workflow run */
-  status: "idle" | "running" | "completed" | "failed";
+  /** Current status of the task run */
+  status: "completed" | "failed";
+  /** Callback to reset and run the task again */
+  onReset: () => void;
 }
 
 /**
- * Displays workflow completion or failure output with appropriate styling.
+ * Displays the task result with a status indicator and the full output content.
  */
-export function TaskOutput({ result, status }: TaskOutputProps) {
-  if (status === "idle" || status === "running") {
-    return null;
-  }
+export function TaskOutput({ result, status, onReset }: TaskOutputProps) {
+  const isSuccess = status === "completed";
 
-  if (status === "completed") {
-    return (
-      <div
-        className={cn(
-          "rounded-lg border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-900",
-          "border-l-4 border-success"
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <CheckCircle
-            size={24}
-            className="shrink-0 text-success"
-            aria-hidden
-          />
-          <div>
-            <h3 className="font-semibold text-surface-900 dark:text-surface-100">
-              Workflow Complete
-            </h3>
-            {result && (
-              <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
-                {result}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (status === "failed") {
-    return (
-      <div
-        className={cn(
-          "rounded-lg border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-900",
-          "border-l-4 border-error"
-        )}
-      >
-        <div className="flex items-start gap-3">
+  return (
+    <div
+      className={cn(
+        "rounded-xl border bg-white p-6 dark:bg-surface-900",
+        isSuccess
+          ? "border-success/40 dark:border-success/30"
+          : "border-error/40 dark:border-error/30"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {isSuccess ? (
+          <CheckCircle size={24} className="shrink-0 text-success" aria-hidden />
+        ) : (
           <XCircle size={24} className="shrink-0 text-error" aria-hidden />
-          <div>
-            <h3 className="font-semibold text-surface-900 dark:text-surface-100">
-              Workflow Failed
-            </h3>
-            {result && (
-              <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
-                {result}
-              </p>
-            )}
-          </div>
-        </div>
+        )}
+        <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
+          {isSuccess ? "Task Complete" : "Task Failed"}
+        </h3>
       </div>
-    );
-  }
 
-  return null;
+      {result && (
+        <pre className="mt-4 whitespace-pre-wrap rounded-lg bg-surface-50 p-4 font-sans text-sm leading-relaxed text-surface-700 dark:bg-surface-800 dark:text-surface-300">
+          {result}
+        </pre>
+      )}
+
+      <Button
+        onClick={onReset}
+        variant="secondary"
+        className="mt-6"
+      >
+        <RotateCcw size={16} />
+        Run Again
+      </Button>
+    </div>
+  );
 }

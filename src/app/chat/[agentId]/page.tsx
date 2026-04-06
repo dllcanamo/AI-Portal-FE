@@ -4,8 +4,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Bot, ArrowLeft, Info, ChevronDown, ChevronUp } from "lucide-react";
-import { getAgentById, getMockResponse } from "@/lib/mock-data";
-import type { Message } from "@/lib/types";
+import { getAgentById } from "@/config/agents";
+import type { Message, Attachment, AttachmentPayload } from "@/lib/types";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -20,6 +20,20 @@ import { cn } from "@/lib/utils";
  */
 function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Converts a File to a base64-encoded AttachmentPayload for the API.
+ */
+async function fileToBase64Payload(att: Attachment): Promise<AttachmentPayload | null> {
+  if (!att.file) return null;
+  const buf = await att.file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return { name: att.name, mimeType: att.mimeType, base64: btoa(binary) };
 }
 
 /**
@@ -63,8 +77,12 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages, isTyping, scrollToBottom]);
 
+  /**
+   * Sends the user message to /api/chat and streams the assistant's response
+   * via SSE, updating the message content as tokens arrive.
+   */
   const handleSend = useCallback(
-    (text: string) => {
+    async (text: string, attachments: Attachment[]) => {
       if (!agent) return;
 
       const userMessage: Message = {
@@ -72,24 +90,111 @@ export default function ChatPage() {
         role: "user",
         content: text,
         timestamp: new Date(),
+        attachments: attachments.length > 0 ? attachments : undefined,
       };
-      setMessages((prev) => [...prev, userMessage]);
+
+      const assistantMsgId = generateMessageId();
+      const assistantMessage: Message = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsTyping(true);
 
-      const delay = 1000 + Math.random() * 1000;
-      setTimeout(() => {
-        const response = getMockResponse(agentId);
-        const assistantMessage: Message = {
-          id: generateMessageId(),
-          role: "assistant",
-          content: response,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
+      const payloads: AttachmentPayload[] = [];
+      if (attachments.length > 0 && agent.supportsAttachments) {
+        const results = await Promise.all(attachments.map(fileToBase64Payload));
+        for (const p of results) {
+          if (p) payloads.push(p);
+        }
+      }
+
+      const all = [...messages, userMessage]
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+      const firstUserIdx = all.findIndex((m) => m.role === "user");
+      const history = firstUserIdx >= 0 ? all.slice(firstUserIdx) : all;
+
+      const lastIdx = history.length - 1;
+      const messagesWithAttachments = history.map((m, i) =>
+        i === lastIdx && payloads.length > 0
+          ? { ...m, attachments: payloads }
+          : m,
+      );
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId, messages: messagesWithAttachments }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? `Request failed (${res.status})`);
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response stream available");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (line.startsWith("event: error")) {
+              const nextDataLine = lines.find((l) => l.startsWith("data: "));
+              if (nextDataLine) {
+                throw new Error(JSON.parse(nextDataLine.slice(6)));
+              }
+              continue;
+            }
+
+            if (!line.startsWith("data: ")) continue;
+
+            const payload = line.slice(6);
+            if (payload === "[DONE]") break;
+
+            const token: string = JSON.parse(payload);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? { ...m, content: m.content + token }
+                  : m,
+              ),
+            );
+          }
+        }
+      } catch (err) {
+        const errorText =
+          err instanceof Error ? err.message : "Something went wrong";
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  content: m.content
+                    ? `${m.content}\n\n---\nError: ${errorText}`
+                    : `Sorry, I encountered an error: ${errorText}`,
+                }
+              : m,
+          ),
+        );
+      } finally {
         setIsTyping(false);
-      }, delay);
+      }
     },
-    [agent, agentId]
+    [agent, agentId, messages],
   );
 
   if (!agent) {
@@ -222,7 +327,11 @@ export default function ChatPage() {
           </div>
 
           <div className="shrink-0 border-t border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-950">
-            <ChatInput onSend={handleSend} disabled={isTyping} />
+            <ChatInput
+              onSend={handleSend}
+              disabled={isTyping}
+              supportsAttachments={agent.supportsAttachments ?? false}
+            />
           </div>
         </div>
       </div>

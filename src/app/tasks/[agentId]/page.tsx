@@ -2,93 +2,96 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { getAgentById, getWorkflowSteps } from "@/lib/mock-data";
-import type { WorkflowStep } from "@/lib/types";
+import { getAgentById } from "@/config/agents";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { StepTracker } from "@/components/tasks/StepTracker";
-import { StepDetail } from "@/components/tasks/StepDetail";
 import { TaskTrigger } from "@/components/tasks/TaskTrigger";
 import { TaskOutput } from "@/components/tasks/TaskOutput";
 
 type RunStatus = "idle" | "running" | "completed" | "failed";
 
 /**
- * Task workflow page for a given agent. Displays agent info, workflow steps,
- * and allows running the workflow with animated step progression.
+ * Task agent page with three phases: input, processing, and output.
+ * Calls /api/chat which routes to the agent's configured backend.
  */
 export default function TaskAgentPage() {
   const params = useParams();
   const agentId = params.agentId as string;
-
   const agent = getAgentById(agentId);
-  const initialSteps = getWorkflowSteps(agentId);
 
-  const [steps, setSteps] = useState<WorkflowStep[]>(initialSteps);
-  const [activeStepId, setActiveStepId] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const [status, setStatus] = useState<RunStatus>("idle");
   const [result, setResult] = useState<string | null>(null);
-  const [runStatus, setRunStatus] = useState<RunStatus>("idle");
 
+  /**
+   * Sends the task input to /api/chat and streams the response.
+   */
   const handleTrigger = useCallback(
-    (input: Record<string, string>) => {
-      const freshSteps = getWorkflowSteps(agentId);
-      setSteps(freshSteps);
-      setActiveStepId(null);
-      setIsRunning(true);
-      setRunStatus("running");
+    async (input: Record<string, string>) => {
+      setStatus("running");
       setResult(null);
 
-      if (freshSteps.length === 0) {
-        setIsRunning(false);
-        setRunStatus("completed");
-        setResult("No workflow steps configured for this agent.");
-        return;
-      }
+      const prompt = Object.entries(input)
+        .map(([key, val]) => `${key}: ${val}`)
+        .join("\n");
 
-      let cumulativeDelay = 0;
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
 
-      freshSteps.forEach((step, index) => {
-        cumulativeDelay += step.duration ?? 1000;
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? `Request failed (${res.status})`);
+        }
 
-        setTimeout(() => {
-          setSteps((prev) =>
-            prev.map((s) =>
-              s.id === step.id
-                ? { ...s, status: "running" as const }
-                : s
-            )
-          );
-          setActiveStepId(step.id);
-        }, cumulativeDelay - (step.duration ?? 1000));
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response stream available");
 
-        setTimeout(() => {
-          setSteps((prev) =>
-            prev.map((s) =>
-              s.id === step.id
-                ? {
-                    ...s,
-                    status: "completed" as const,
-                    output: step.output,
-                  }
-                : s
-            )
-          );
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let accumulated = "";
 
-          if (index === freshSteps.length - 1) {
-            setIsRunning(false);
-            setRunStatus("completed");
-            setResult(
-              `Workflow completed successfully. ${freshSteps.length} steps executed.`
-            );
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6);
+            if (payload === "[DONE]") break;
+            accumulated += JSON.parse(payload) as string;
           }
-        }, cumulativeDelay);
-      });
+        }
+
+        setResult(accumulated || "Task completed with no output.");
+        setStatus("completed");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setResult(`Error: ${msg}`);
+        setStatus("failed");
+      }
     },
-    [agentId]
+    [agentId],
   );
+
+  /**
+   * Resets the page back to the idle input state.
+   */
+  function handleReset() {
+    setStatus("idle");
+    setResult(null);
+  }
 
   if (!agent) {
     return (
@@ -107,16 +110,14 @@ export default function TaskAgentPage() {
     );
   }
 
-  const activeStep = steps.find((s) => s.id === activeStepId) ?? null;
-
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-6">
+    <div className="mx-auto max-w-3xl space-y-8 p-6">
       <Link
-        href="/agents"
+        href="/tasks"
         className="inline-flex items-center gap-2 text-sm text-surface-600 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100"
       >
         <ArrowLeft size={16} />
-        Back to agents
+        Back to task agents
       </Link>
 
       <header className="flex flex-wrap items-start gap-4 rounded-xl border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-900">
@@ -138,32 +139,37 @@ export default function TaskAgentPage() {
         </div>
       </header>
 
-      <TaskTrigger
-        agentName={agent.name}
-        isRunning={isRunning}
-        onTrigger={handleTrigger}
-      />
+      {status === "idle" && (
+        <TaskTrigger
+          agentName={agent.name}
+          isRunning={false}
+          onTrigger={handleTrigger}
+        />
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="space-y-4 lg:col-span-3">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
-            Workflow steps
-          </h2>
-          <StepTracker
-            activeStepId={activeStepId}
-            onStepClick={setActiveStepId}
-            steps={steps}
+      {status === "running" && (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-surface-200 bg-white p-12 dark:border-surface-700 dark:bg-surface-900">
+          <Loader2
+            size={40}
+            className="animate-spin text-primary-500"
+            aria-hidden
           />
+          <p className="text-lg font-medium text-surface-700 dark:text-surface-300">
+            Processing your task...
+          </p>
+          <p className="text-sm text-surface-500 dark:text-surface-400">
+            {agent.name} is working on it
+          </p>
         </div>
-        <div className="space-y-4 lg:col-span-2">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
-            Step details
-          </h2>
-          <StepDetail step={activeStep} />
-        </div>
-      </div>
+      )}
 
-      <TaskOutput result={result} status={runStatus} />
+      {(status === "completed" || status === "failed") && (
+        <TaskOutput
+          result={result}
+          status={status}
+          onReset={handleReset}
+        />
+      )}
     </div>
   );
 }
