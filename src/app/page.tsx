@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { agents } from "@/lib/mock-data";
+import { agents } from "@/config/agents";
 import { Card } from "@/components/ui/Card";
 import { AgentCard } from "@/components/agents/AgentCard";
 import { Badge } from "@/components/ui/Badge";

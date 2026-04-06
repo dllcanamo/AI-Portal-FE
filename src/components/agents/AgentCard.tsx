@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Paperclip } from "lucide-react";
 import { Agent } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -50,6 +51,12 @@ export function AgentCard({ agent }: AgentCardProps) {
                 {agent.type === "chat" ? "Chat" : "Task"}
               </Badge>
               <Badge>{agent.category}</Badge>
+              {agent.supportsAttachments && (
+                <Badge variant="default">
+                  <Paperclip className="mr-1 inline h-3 w-3" />
+                  Files
+                </Badge>
+              )}
             </div>
           </div>
         </div>

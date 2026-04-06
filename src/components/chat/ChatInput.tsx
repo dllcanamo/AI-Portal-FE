@@ -19,6 +19,8 @@ interface ChatInputProps {
   onSend: (message: string, attachments: Attachment[]) => void;
   /** When true, disables the input and all buttons. */
   disabled?: boolean;
+  /** When true, shows file and image upload buttons. Defaults to false. */
+  supportsAttachments?: boolean;
 }
 
 /**
@@ -26,7 +28,7 @@ interface ChatInputProps {
  * attachment preview strip, and send button. Validates files against type and size
  * restrictions before attaching.
  */
-export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
+export function ChatInput({ onSend, disabled = false, supportsAttachments = false }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!disabled) setIsDragOver(true);
+    if (!disabled && supportsAttachments) setIsDragOver(true);
   };
 
   const handleDragLeave = (e: DragEvent) => {
@@ -111,7 +113,7 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
-    if (disabled) return;
+    if (disabled || !supportsAttachments) return;
 
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
@@ -146,7 +148,7 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
       )}
 
       {/* Attachment preview strip */}
-      {attachments.length > 0 && (
+      {supportsAttachments && attachments.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {attachments.map((att) => (
             <div
@@ -199,57 +201,61 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
           isDragOver && "border-primary-400 bg-primary-50/50"
         )}
       >
-        {/* Hidden file inputs */}
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept={getImageAcceptString()}
-          multiple
-          onChange={handleFileInputChange}
-          className="hidden"
-          aria-hidden
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={getFileAcceptString()}
-          multiple
-          onChange={handleFileInputChange}
-          className="hidden"
-          aria-hidden
-        />
+        {/* Hidden file inputs (only rendered when attachments are supported) */}
+        {supportsAttachments && (
+          <>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept={getImageAcceptString()}
+              multiple
+              onChange={handleFileInputChange}
+              className="hidden"
+              aria-hidden
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={getFileAcceptString()}
+              multiple
+              onChange={handleFileInputChange}
+              className="hidden"
+              aria-hidden
+            />
 
-        {/* Action buttons */}
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={disabled || attachments.length >= MAX_ATTACHMENTS}
-            className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-lg text-surface-400 transition-colors",
-              "hover:bg-surface-100 hover:text-surface-600",
-              "disabled:cursor-not-allowed disabled:opacity-40"
-            )}
-            title="Attach image (JPG, PNG, GIF, WebP — max 5 MB)"
-            aria-label="Attach image"
-          >
-            <ImageIcon size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || attachments.length >= MAX_ATTACHMENTS}
-            className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-lg text-surface-400 transition-colors",
-              "hover:bg-surface-100 hover:text-surface-600",
-              "disabled:cursor-not-allowed disabled:opacity-40"
-            )}
-            title="Attach file (PDF, TXT, CSV, JSON, MD, DOCX, XLSX — max 10 MB)"
-            aria-label="Attach file"
-          >
-            <Paperclip size={20} />
-          </button>
-        </div>
+            {/* Upload action buttons */}
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={disabled || attachments.length >= MAX_ATTACHMENTS}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-lg text-surface-400 transition-colors",
+                  "hover:bg-surface-100 hover:text-surface-600",
+                  "disabled:cursor-not-allowed disabled:opacity-40"
+                )}
+                title="Attach image (JPG, PNG, GIF, WebP — max 5 MB)"
+                aria-label="Attach image"
+              >
+                <ImageIcon size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || attachments.length >= MAX_ATTACHMENTS}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-lg text-surface-400 transition-colors",
+                  "hover:bg-surface-100 hover:text-surface-600",
+                  "disabled:cursor-not-allowed disabled:opacity-40"
+                )}
+                title="Attach file (PDF, TXT, CSV, JSON, MD, DOCX, XLSX — max 10 MB)"
+                aria-label="Attach file"
+              >
+                <Paperclip size={20} />
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Text input */}
         <input
@@ -281,7 +287,7 @@ export function ChatInput({ onSend, disabled = false }: ChatInputProps) {
       </form>
 
       {/* Format hint */}
-      {isDragOver && (
+      {supportsAttachments && isDragOver && (
         <p className="text-center text-xs text-primary-500">
           Drop images or files to attach
         </p>

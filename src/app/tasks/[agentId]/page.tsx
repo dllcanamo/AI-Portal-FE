@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
-import { getAgentById, getMockTaskResponse } from "@/lib/mock-data";
+import { useCallback, useState } from "react";
+import { getAgentById } from "@/config/agents";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { TaskTrigger } from "@/components/tasks/TaskTrigger";
@@ -13,7 +13,8 @@ import { TaskOutput } from "@/components/tasks/TaskOutput";
 type RunStatus = "idle" | "running" | "completed" | "failed";
 
 /**
- * Simplified task agent page with three phases: input, processing, and output.
+ * Task agent page with three phases: input, processing, and output.
+ * Calls /api/chat which routes to the agent's configured backend.
  */
 export default function TaskAgentPage() {
   const params = useParams();
@@ -22,21 +23,66 @@ export default function TaskAgentPage() {
 
   const [status, setStatus] = useState<RunStatus>("idle");
   const [result, setResult] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * Sends the task input to /api/chat and streams the response.
+   */
   const handleTrigger = useCallback(
-    (input: Record<string, string>) => {
+    async (input: Record<string, string>) => {
       setStatus("running");
       setResult(null);
 
-      if (timerRef.current) clearTimeout(timerRef.current);
+      const prompt = Object.entries(input)
+        .map(([key, val]) => `${key}: ${val}`)
+        .join("\n");
 
-      timerRef.current = setTimeout(() => {
-        setResult(getMockTaskResponse(agentId));
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? `Request failed (${res.status})`);
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response stream available");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let accumulated = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6);
+            if (payload === "[DONE]") break;
+            accumulated += JSON.parse(payload) as string;
+          }
+        }
+
+        setResult(accumulated || "Task completed with no output.");
         setStatus("completed");
-      }, 2500);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setResult(`Error: ${msg}`);
+        setStatus("failed");
+      }
     },
-    [agentId]
+    [agentId],
   );
 
   /**
