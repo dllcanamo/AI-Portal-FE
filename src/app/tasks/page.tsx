@@ -1,6 +1,6 @@
 "use client";
 
-import { agents } from "@/lib/mock-data";
+import { agents } from "@/config/agents";
 import { AgentGrid } from "@/components/agents/AgentGrid";
 import { Zap } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";

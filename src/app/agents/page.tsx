@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Bot, Filter, Search } from "lucide-react";
-import { agents } from "@/lib/mock-data";
+import { agents } from "@/config/agents";
 import type { Agent } from "@/lib/types";
 import { AgentGrid } from "@/components/agents/AgentGrid";
 import { Badge } from "@/components/ui/Badge";

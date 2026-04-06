@@ -127,6 +127,7 @@ export function fileToAttachment(file: File): Attachment | null {
     mimeType: file.type,
     attachmentType: classifyFile(file.type),
     url: URL.createObjectURL(file),
+    file,
   };
 }
 
